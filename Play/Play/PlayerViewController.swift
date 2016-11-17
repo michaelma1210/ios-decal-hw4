@@ -5,7 +5,6 @@
 //  Created by Gene Yoo on 11/26/15.
 //  Copyright © 2015 cs198-1. All rights reserved.
 //
-
 import UIKit
 import AVFoundation
 import AVKit
@@ -13,72 +12,74 @@ import AVKit
 class PlayerViewController: UIViewController {
     var tracks: [Track]!
     var scAPI: SoundCloudAPI!
-
+    
     var currentIndex: Int!
     var player: AVQueuePlayer!
+    var avplayer: AVPlayer!
     var trackImageView: UIImageView!
-
+    
     var playPauseButton: UIButton!
     var nextButton: UIButton!
     var previousButton: UIButton!
-
+    
     var artistLabel: UILabel!
     var titleLabel: UILabel!
     var didPlay: [Track]!
-
+    
     var paused = true
-
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         view = UIView(frame: UIScreen.main.bounds)
         view.backgroundColor = UIColor.white
-
+        
         scAPI = SoundCloudAPI()
         scAPI.loadTracks(didLoadTracks)
         self.didPlay = []
         currentIndex = 0
-
+        
         player = AVQueuePlayer()
-
+        avplayer = AVPlayer()
+        
         loadVisualElements()
         loadPlayerButtons()
     }
-
+    
     func loadVisualElements() {
         let width = UIScreen.main.bounds.size.width
         let height = UIScreen.main.bounds.size.height
         let offset = height - width
-
-
+        
+        
         trackImageView = UIImageView(frame: CGRect(x: 0.0, y: 0.0,
                                                    width: width, height: width))
         trackImageView.contentMode = UIViewContentMode.scaleAspectFill
         trackImageView.clipsToBounds = true
         view.addSubview(trackImageView)
-
+        
         titleLabel = UILabel(frame: CGRect(x: 0.0, y: width + offset * 0.15,
                                            width: width, height: 20.0))
         titleLabel.textAlignment = NSTextAlignment.center
         view.addSubview(titleLabel)
-
+        
         artistLabel = UILabel(frame: CGRect(x: 0.0, y: width + offset * 0.25,
                                             width: width, height: 20.0))
         artistLabel.textAlignment = NSTextAlignment.center
         artistLabel.textColor = UIColor.gray
         view.addSubview(artistLabel)
     }
-
-
+    
+    
     func loadPlayerButtons() {
         let width = UIScreen.main.bounds.size.width
         let height = UIScreen.main.bounds.size.height
         let offset = height - width
-
+        
         let playImage = UIImage(named: "play")?.withRenderingMode(.alwaysTemplate)
         let pauseImage = UIImage(named: "pause")?.withRenderingMode(.alwaysTemplate)
         let nextImage = UIImage(named: "next")?.withRenderingMode(.alwaysTemplate)
         let previousImage = UIImage(named: "previous")?.withRenderingMode(.alwaysTemplate)
-
+        
         playPauseButton = UIButton(type: UIButtonType.custom)
         playPauseButton.frame = CGRect(x: width / 2.0 - width / 30.0,
                                        y: width + offset * 0.5,
@@ -89,7 +90,7 @@ class PlayerViewController: UIViewController {
         playPauseButton.addTarget(self, action: #selector(playOrPauseTrack),
                                   for: .touchUpInside)
         view.addSubview(playPauseButton)
-
+        
         previousButton = UIButton(type: UIButtonType.custom)
         previousButton.frame = CGRect(x: width / 2.0 - width / 30.0 - width / 5.0,
                                       y: width + offset * 0.5,
@@ -99,7 +100,7 @@ class PlayerViewController: UIViewController {
         previousButton.addTarget(self, action: #selector(previousTrackTapped(_:)),
                                  for: UIControlEvents.touchUpInside)
         view.addSubview(previousButton)
-
+        
         nextButton = UIButton(type: UIButtonType.custom)
         nextButton.frame = CGRect(x: width / 2.0 - width / 30.0 + width / 5.0,
                                   y: width + offset * 0.5,
@@ -109,16 +110,16 @@ class PlayerViewController: UIViewController {
         nextButton.addTarget(self, action: #selector(nextTrackTapped(_:)),
                              for: UIControlEvents.touchUpInside)
         view.addSubview(nextButton)
-
+        
     }
-
+    
     func loadTrackElements() {
         let track = tracks[currentIndex]
         asyncLoadTrackImage(track)
         titleLabel.text = track.title
         artistLabel.text = track.artist
     }
-
+    
     /*
      *  This Method should play or pause the song, depending on the song's state
      *  It should also toggle between the play and pause images by toggling
@@ -135,9 +136,22 @@ class PlayerViewController: UIViewController {
         let track = tracks[currentIndex]
         let url = URL(string: "https://api.soundcloud.com/tracks/\(track.id as Int)/stream?client_id=\(clientID)")!
         // FILL ME IN
+        if avplayer.currentItem != AVPlayerItem(url: url) {
+            avplayer.replaceCurrentItem(with: AVPlayerItem(url: url))
+        }
+        if paused {
+            avplayer.play()
 
+            paused = false
+            
+        } else {
+            avplayer.pause()
+
+            paused = true
+        }
+        sender.isSelected = !sender.isSelected
     }
-
+    
     /*
      * Called when the next button is tapped. It should check if there is a next
      * track, and if so it will load the next track's data and
@@ -146,8 +160,22 @@ class PlayerViewController: UIViewController {
      */
     func nextTrackTapped(_ sender: UIButton) {
         // FILL ME IN
+        if tracks.count > currentIndex + 1 {
+            currentIndex = currentIndex + 1
+            loadTrackElements()
+            
+            if !paused {
+                let path = Bundle.main.path(forResource: "Info", ofType: "plist")
+                let clientID = NSDictionary(contentsOfFile: path!)?.value(forKey: "client_id") as! String
+                let track = tracks[currentIndex]
+                let url = URL(string: "https://api.soundcloud.com/tracks/\(track.id as Int)/stream?client_id=\(clientID)")!
+                
+                avplayer.replaceCurrentItem(with: AVPlayerItem(url: url))
+                player.advanceToNextItem()
+            }
+        }
     }
-
+    
     /*
      * Called when the previous button is tapped. It should behave in 2 possible
      * ways:
@@ -157,16 +185,31 @@ class PlayerViewController: UIViewController {
      *      a song is already playing
      *  Remember to update the currentIndex if necessary
      */
-
+    
     func previousTrackTapped(_ sender: UIButton) {
         // FILL ME IN
+        if avplayer.currentTime() > CMTimeMake(3, 1) {
+            avplayer.seek(to: CMTimeMake(0, 1))
+        } else if (currentIndex - 1) >= 0{
+            currentIndex = currentIndex - 1
+            loadTrackElements()
+            if !paused {
+                let path = Bundle.main.path(forResource: "Info", ofType: "plist")
+                let clientID = NSDictionary(contentsOfFile: path!)?.value(forKey: "client_id") as! String
+                let track = tracks[currentIndex]
+                let url = URL(string: "https://api.soundcloud.com/tracks/\(track.id as Int)/stream?client_id=\(clientID)")!
+                
+                avplayer.replaceCurrentItem(with: AVPlayerItem(url: url))
+                avplayer.play()
+            }
+        }
     }
-
-
+    
+    
     func asyncLoadTrackImage(_ track: Track) {
         let url = URL(string: track.artworkURL)
         let session = URLSession(configuration: URLSessionConfiguration.default)
-
+        
         let task = session.dataTask(with: url!) {(data, response, error) -> Void in
             if error == nil {
                 let image = UIImage(data: data!)
@@ -185,4 +228,3 @@ class PlayerViewController: UIViewController {
         loadTrackElements()
     }
 }
-
